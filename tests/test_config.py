@@ -6,8 +6,8 @@ def test_config_defaults():
     # Reset env vars to test defaults
     os.environ.pop("GCP_PROJECT_ID", None)
     config = ProjectConfig()
-    # Note: The default in config.py was changed to 'local-test-project' for safety
-    assert config.project_id == "local-test-project"
+    # Note: The default in config.py is 'my-playground-492309'
+    assert config.project_id == "my-playground-492309"
 
 def test_config_env_override(monkeypatch):
     monkeypatch.setenv("GCP_PROJECT_ID", "overridden-project")
