@@ -155,8 +155,8 @@ def medium_rag_pipeline():
     # Task 5: Sync to Vertex AI RAG (Gold)
     sync_to_gold = BashOperator(
         task_id="update_vertex_rag",
-        # Use v2 filename to force GCSfuse cache refresh on Composer workers
-        bash_command=f"python /home/airflow/gcs/data/apt/tools/serve/update_vertex_rag_v2.py --date {{{{ ds }}}}",
+        # Use v3 filename to force GCSfuse cache refresh and bypass stale metadata
+        bash_command=f"python /home/airflow/gcs/data/apt/tools/serve/update_vertex_rag_v3.py --date {{{{ ds }}}}",
         env=COMMON_ENV
     )
 
