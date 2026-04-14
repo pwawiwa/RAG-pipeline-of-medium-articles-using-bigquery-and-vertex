@@ -1,28 +1,47 @@
-# dags/libs/config.py
+# dags/medium_rag_utils/config.py
 import os
 from airflow.models import Variable
 
-def get_var(name, default):
-    """Fetches variable from Airflow Variables, then Environment, then Default."""
-    try:
-        return Variable.get(name)
-    except Exception:
-        return os.getenv(name, default)
+class ProjectConfig:
+    """Centralized configuration manager using a Singleton-like pattern."""
+    
+    def __init__(self):
+        # Project-level defaults
+        self.project_id = self._get_var("GCP_PROJECT_ID", "my-playground-492309")
+        self.region = self._get_var("GCP_REGION", "asia-southeast1")
+        
+        # Storage
+        self.bronze_bucket = self._get_var("BRONZE_BUCKET", f"medium-bronze-{self.project_id}")
+        
+        # BigQuery
+        self.bq_dataset = self._get_var("BQ_DATASET", "medium_pipeline")
+        self.bq_table = self._get_var("BQ_TABLE", "silver_medium_articles")
+        
+        # Vertex AI (Legacy support)
+        self.vertex_rag_corpus_name = self._get_var("VERTEX_RAG_CORPUS_NAME", "")
+        
+        # Scraper
+        self.image_ingest_node = self._get_var("IMAGE_INGEST_NODE", f"{self.region}-docker.pkg.dev/{self.project_id}/medium-repo/medium-ingest-node:latest")
+        self.topic = self._get_var("TOPIC", "data-engineering")
 
-# Project Config
-GCP_PROJECT_ID = get_var("GCP_PROJECT_ID", "my-playground-492309")
-GCP_REGION = get_var("GCP_REGION", "asia-southeast1")
+    def _get_var(self, name, default):
+        """Fetches from Airflow Variables -> Environment -> Default."""
+        try:
+            return Variable.get(name)
+        except Exception:
+            return os.getenv(name, default)
 
-# Storage Config
-BRONZE_BUCKET = get_var("BRONZE_BUCKET", "medium-bronze-my-playground-492309")
+    @property
+    def silver_table_id(self):
+        return f"{self.project_id}.{self.bq_dataset}.{self.bq_table}"
 
-# BigQuery Config
-BQ_DATASET = get_var("BQ_DATASET", "medium_pipeline")
-BQ_TABLE = get_var("BQ_TABLE", "silver_medium_articles")
+    @property
+    def gold_chunks_table_id(self):
+        return f"{self.project_id}.{self.bq_dataset}.gold_article_chunks"
+    
+    @property
+    def embedding_model_id(self):
+        return f"{self.project_id}.{self.bq_dataset}.embedding_model"
 
-# Vertex AI Config
-VERTEX_RAG_CORPUS_NAME = get_var("VERTEX_RAG_CORPUS_NAME", "projects/my-playground-492309/locations/asia-southeast1/ragCorpora/7679774659341189120")
-
-# Scraper Config
-IMAGE_INGEST_NODE = get_var("IMAGE_INGEST_NODE", "asia-southeast1-docker.pkg.dev/my-playground-492309/medium-repo/medium-ingest-node:latest")
-TOPIC = get_var("TOPIC", "data-engineering")
+# Instance for easy global access
+cfg = ProjectConfig()
