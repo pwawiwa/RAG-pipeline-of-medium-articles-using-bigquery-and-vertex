@@ -56,12 +56,19 @@ jobs:
       - name: Install Dependencies for Validation
         run: |
           pip install apache-airflow \
+            apache-airflow-providers-google \
             apache-airflow-providers-cncf-kubernetes \
             google-cloud-aiplatform \
             google-cloud-bigquery \
             google-cloud-storage \
             python-dotenv \
-            kubernetes
+            kubernetes \
+            pylint
+
+      - name: Run Linter (Pylint)
+        run: |
+          echo "[INFO] Running Pylint on dags/ and api/"
+          pylint dags/ api/ --errors-only
 
       - name: Verify DAG Syntax
         run: |
