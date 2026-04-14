@@ -17,5 +17,8 @@ COPY tsconfig.json ./
 COPY fetch-topic-urls.ts ./
 COPY fetch-medium-article.ts ./
 
+# Run TypeScript compilation during the build phase
+RUN npm run build
+
 # Default entrypoint (Airflow will override the command)
 ENTRYPOINT ["npm", "run"]

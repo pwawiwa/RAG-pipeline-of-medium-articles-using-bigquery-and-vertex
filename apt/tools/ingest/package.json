@@ -7,8 +7,9 @@
   "main": "fetch-topic-urls.ts",
   "type": "module",
   "scripts": {
-    "fetch-urls": "ts-node --esm fetch-topic-urls.ts",
-    "fetch-articles": "ts-node --esm fetch-medium-article.ts"
+    "build": "tsc",
+    "fetch-urls": "node dist/fetch-topic-urls.js",
+    "fetch-articles": "node dist/fetch-medium-article.js"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.11.0",
