@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from airflow.decorators import dag, task
 from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from airflow.operators.bash import BashOperator
+from kubernetes.client import models as k8s
 from google.cloud import storage
 
 # Environment and Schema bindings (Matches catalog.json)
@@ -19,6 +20,8 @@ GCP_PROJECT_ID = "my-playground-492309"
 GCP_REGION = "asia-southeast1"
 BQ_DATASET = "medium_pipeline"
 BQ_TABLE = "silver_medium_articles"
+# Vertex RAG Corpus - Managed by GCP
+CORPUS_NAME = "projects/my-playground-492309/locations/asia-southeast1/ragCorpora/7679774659341189120"
 
 # Shared environment variables for all tasks (K8s and Bash)
 COMMON_ENV = {
@@ -29,6 +32,12 @@ COMMON_ENV = {
     "BQ_TABLE": BQ_TABLE,
     "VERTEX_RAG_CORPUS_NAME": CORPUS_NAME
 }
+
+# Senior Recommendation: Explicit Resource Management
+SCRAPER_RESOURCES = k8s.V1ResourceRequirements(
+    requests={"cpu": "200m", "memory": "256Mi"},
+    limits={"cpu": "500m", "memory": "512Mi"}
+)
 
 def fetch_failed_callback(context):
     """Task-level failure callback that writes failure metadata to GCS."""
@@ -73,6 +82,7 @@ def medium_rag_pipeline():
         image=IMAGE_INGEST_NODE,
         cmds=["npm", "run", "fetch-urls", "---", "--topic", TOPIC],
         env_vars=COMMON_ENV,
+        container_resources=SCRAPER_RESOURCES,
         get_logs=True,
         is_delete_operator_pod=True,
     )
@@ -109,10 +119,13 @@ def medium_rag_pipeline():
         namespace="composer-user-workloads",
         image=IMAGE_INGEST_NODE,
         env_vars=COMMON_ENV,
+        container_resources=SCRAPER_RESOURCES,
         get_logs=True,
         is_delete_operator_pod=True,
     ).expand(
-        cmds=scraper_commands
+        # Senior Recommendation: Drip-feed scrapers to prevent cluster starvation
+        cmds=scraper_commands,
+        map_index_template="{{ task.op_kwargs['cmds'][7] }}" # Show URL in Airflow UI
     )
 
     # Task 4: Load to BigQuery (Silver) using BashOperator to invoke deployed Python script

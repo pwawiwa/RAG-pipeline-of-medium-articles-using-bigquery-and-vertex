@@ -47,6 +47,21 @@ async function uploadToGcs(path: string, data: any) {
 }
 
 async function run() {
+  const gcsPath = `raw/articles/${topic}/${today}/${urlSlug}.json`;
+  
+  try {
+    const bucket = storage.bucket(bucketName!);
+    const file = bucket.file(gcsPath);
+    const [exists] = await file.exists();
+    
+    if (exists) {
+      console.log(`[INFO] Skipping scrape: ${targetUrl} already exists in GCS at ${gcsPath}`);
+      return;
+    }
+  } catch (err: any) {
+    console.warn(`[WARN] Could not check existence in GCS (ignoring and proceeding): ${err.message}`);
+  }
+
   console.log(`[INFO] Waiting ${delayMs}ms before scrape...`);
   await new Promise(r => setTimeout(r, delayMs));
 

@@ -7,6 +7,11 @@ name: Deploy Medium RAG Pipeline
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'api/**'
+      - 'apt/**'
+      - 'dags/**'
+      - '.github/workflows/deploy.yaml'
 
 env:
   PROJECT_ID: "my-playground-492309"
