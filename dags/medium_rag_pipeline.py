@@ -9,7 +9,7 @@ from kubernetes.client import models as k8s
 from google.cloud import storage
 
 # Centralized configuration
-import libs.config as config
+import medium_rag_utils.config as config
 
 # Shared environment variables
 COMMON_ENV = {
@@ -45,7 +45,7 @@ def medium_rag_pipeline():
     # Task 0: Optional Infrastructure Setup (One-off)
     @task
     def setup_bq_infrastructure():
-        from libs.setup_bq import setup_infrastructure
+        from medium_rag_utils.setup_bq import setup_infrastructure
         setup_infrastructure(config.GCP_PROJECT_ID, config.GCP_REGION, config.BQ_DATASET)
 
     # Task 1: Fetch RSS URLs
@@ -116,7 +116,7 @@ def medium_rag_pipeline():
     # Task 4: Load to BQ, Validate Contracts, Chunk & Embed
     @task
     def transform_and_vectorize(ds: str = None):
-        from libs.bq_loader import run_load
+        from medium_rag_utils.bq_loader import run_load
         run_load(
             topic=config.TOPIC,
             date=ds,
