@@ -18,7 +18,7 @@ def setup_infrastructure(project_id: str, location: str, dataset: str):
     # Connection creation usually requires specific roles, but we'll try it.
     try:
         # Check if exists first
-        from google.cloud import bigquery_connection_v1 as bq_conn
+        from google.cloud import bigquery_connection_v1 as bq_conn  # pylint: disable=no-name-in-module
         conn_client = bq_conn.ConnectionServiceClient()
         
         try:
