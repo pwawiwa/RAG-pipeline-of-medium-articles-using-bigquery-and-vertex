@@ -60,11 +60,17 @@ def main():
     # We will spool the text to a temporary local staging directory to utilize batch upload.
     
     storage_client = storage.Client(project=GCP_PROJECT_ID)
-    bucket = storage_client.bucket(BRONZE_BUCKET)
-    staging_prefix = f"staging/vertex-rag/{target_date}/"
-    gcs_staging_uri = f"gs://{BRONZE_BUCKET}/{staging_prefix}"
+    # Sanitize bucket name and prefix to prevent mangled URIs
+    clean_bucket = BRONZE_BUCKET.strip().replace("gs://", "").strip("/")
+    bucket = storage_client.bucket(clean_bucket)
     
-    print(f"[INFO] Uploading {len(rows)} articles to GCS staging: {gcs_staging_uri}")
+    staging_prefix = f"staging/vertex-rag/{target_date}/"
+    gcs_staging_uri = f"gs://{clean_bucket}/{staging_prefix}"
+    
+    print(f"[V3-SYNC] Starting sync for date: {target_date}")
+    print(f"[V3-SYNC] Using GCS URI: {gcs_staging_uri}")
+    print(f"[V3-SYNC] Uploading {len(rows)} articles to GCS staging...")
+    
     for row in rows:
         slug = row['article_url'].split("/")[-1].split("?")[0]
         if not slug:
