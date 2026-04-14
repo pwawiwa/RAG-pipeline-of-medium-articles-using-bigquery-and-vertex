@@ -79,6 +79,13 @@ def medium_rag_pipeline():
 
     article_urls = extract_urls_from_gcs()
 
+    # Helper task to format command strings for the dynamic pods
+    @task
+    def prepare_scraper_commands(urls: list):
+        return [["npm", "run", "fetch-articles", "---", "--topic", TOPIC, "--url", url] for url in urls]
+
+    scraper_commands = prepare_scraper_commands(article_urls)
+
     # Task 3: Dynamically map the article scraper over every URL individually
     # Required by specification: "One execution per URL"
     scrape_articles = KubernetesPodOperator.partial(
@@ -89,7 +96,7 @@ def medium_rag_pipeline():
         get_logs=True,
         is_delete_operator_pod=True,
     ).expand(
-        cmds=[["npm", "run", "fetch-articles", "---", "--topic", TOPIC, "--url", url] for url in article_urls]
+        cmds=scraper_commands
     )
 
     # Task 4: Load to BigQuery (Silver) using BashOperator to invoke deployed Python script

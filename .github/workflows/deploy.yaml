@@ -1,0 +1,73 @@
+# Path: .github/workflows/deploy.yaml
+# Purpose: Professional CI/CD for GCR, Cloud Run, and Composer logic
+# Idempotent: true
+
+name: Deploy Medium RAG Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  PROJECT_ID: "my-playground-492309"
+  REGION: "asia-southeast1"
+  REPO_NAME: "medium-repo"
+  COMPOSER_ENV_NAME: "medium-airflow-orchestrator"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 1. Authenticate with GCP via Workload Identity Federation
+      # See setup instructions provided by Antigravity in the chat
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          token_format: 'access_token'
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker Local Auth
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      # 2. Build and Push Containers
+      - name: Build & Push Ingest Image
+        run: gcloud builds submit ./apt/tools/ingest --tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/medium-ingest-node:latest --project ${{ env.PROJECT_ID }} --region ${{ env.REGION }}
+
+      - name: Build & Push API Image
+        run: gcloud builds submit ./api --tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/medium-rag-api:latest --project ${{ env.PROJECT_ID }} --region ${{ env.REGION }}
+
+      # 3. Deploy to Cloud Run
+      - name: Deploy Cloud Run API
+        run: |
+          gcloud run deploy medium-rag-api \
+            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/medium-rag-api:latest \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }} \
+            --platform managed \
+            --quiet
+
+      # 4. Sync DAGs and Python Tools to Cloud Composer
+      - name: Sync Orchestration Layer
+        run: |
+          # Retrieve the DAG bucket name dynamically
+          DAG_BUCKET=$(gcloud composer environments describe ${{ env.COMPOSER_ENV_NAME }} --location ${{ env.REGION }} --project ${{ env.PROJECT_ID }} --format="value(config.dagGcsPrefix)")
+          
+          # Sync DAGs
+          echo "[INFO] Syncing DAGs to ${DAG_BUCKET}"
+          gcloud storage cp dags/*.py ${DAG_BUCKET}/
+          
+          # Sync Python utility tools used by the DAG tasks
+          echo "[INFO] Syncing Python Tools to Data folder"
+          gcloud storage rsync apt ${DAG_BUCKET}/../data/apt --recursive --delete-unmatched-destination-objects
