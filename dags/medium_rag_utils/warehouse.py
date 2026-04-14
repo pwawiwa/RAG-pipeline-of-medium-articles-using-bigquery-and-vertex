@@ -1,7 +1,9 @@
-# dags/medium_rag_utils/warehouse.py
+import logging
 from google.cloud import bigquery
 from medium_rag_utils.config import cfg
-from medium_rag_utils.data_contracts import get_validation_query
+from medium_rag_utils.data_contracts import get_validation_query, get_bq_schema
+
+logger = logging.getLogger(__name__)
 
 class BigQueryManager:
     """Manages all Data Warehouse operations including DDL, loading, and indexing."""
@@ -11,7 +13,7 @@ class BigQueryManager:
 
     def setup_infrastructure(self):
         """Standardizes table and model creation with partitioning and clustering for scale."""
-        print(f"[WAREHOUSE] Setting up optimized infrastructure for {cfg.project_id}...")
+        logger.info(f"Setting up optimized infrastructure for {cfg.project_id}...")
         
         # 1. Create Silver Table (Partitioned & Clustered)
         create_silver_query = f"""
@@ -59,15 +61,18 @@ class BigQueryManager:
         try:
             self.client.query(model_query).result()
         except Exception as e:
-            print(f"[WAREHOUSE][WARN] Connection setup might be required: {e}")
+            logger.warning(f"Connection setup might be required: {e}")
 
     def load_from_gcs(self, source_uri: str, temp_table_id: str):
-        """Direct bulk load from GCS to a temporary table."""
+        """Direct bulk load from GCS to a temporary table with schema enforcement."""
         job_config = bigquery.LoadJobConfig(
             source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
-            autodetect=True,
+            schema=get_bq_schema(),
             write_disposition="WRITE_TRUNCATE",
+            max_bad_records=100,  # Gracefully skip malformed files
+            ignore_unknown_values=True
         )
+        logger.info(f"Triggering BQ LOAD from {source_uri} to {temp_table_id}")
         load_job = self.client.load_table_from_uri(source_uri, temp_table_id, job_config=job_config)
         load_job.result()
 
@@ -100,9 +105,8 @@ class BigQueryManager:
         self.client.query(merge_query).result()
         self.client.delete_table(temp_table_id, not_found_ok=True)
 
-    def generate_embeddings(self, date: str):
         """Chunks and generates vectors for the specified date. Logic is now idempotent."""
-        
+        logger.info(f"Generating embeddings for {date} (Silver -> Gold)...")
         # 1. Clean existing chunks for these articles to prevent bloat
         cleanup_query = f"""
         DELETE FROM `{cfg.gold_chunks_table_id}`
@@ -113,7 +117,7 @@ class BigQueryManager:
         """
         self.client.query(cleanup_query).result()
 
-        # 2. Insert fresh chunks
+        # 2. Insert fresh chunks (Filtering out NULL dates to avoid the "indexing black hole")
         insert_query = f"""
         INSERT INTO `{cfg.gold_chunks_table_id}` (article_url, chunk_id, chunk_text, embedding, ingested_at)
         WITH chunks AS (
@@ -125,6 +129,7 @@ class BigQueryManager:
           FROM `{cfg.silver_table_id}`,
           UNNEST(REGEXP_EXTRACT_ALL(page_content, r'.{{1,800}}(?:\\s|$)')) as chunk_text
           WHERE published_date = '{date}'
+            AND published_date IS NOT NULL
         )
         SELECT article_url, chunk_id, chunk_text, ml_generate_embedding_result, ingested_at
         FROM ML.GENERATE_EMBEDDING(

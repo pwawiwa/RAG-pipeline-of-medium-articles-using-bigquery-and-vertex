@@ -1,6 +1,8 @@
-# dags/libs/data_contracts.py
 import re
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 class DataContractError(Exception):
     """Raised when a record violates the data contract."""
@@ -54,3 +56,23 @@ def get_validation_query(table_id: str):
     FROM `{table_id}`
     WHERE NOT article_url LIKE 'http%'
     """
+
+def get_bq_schema():
+    """Returns the explicit BigQuery schema for the silver table."""
+    from google.cloud import bigquery
+    return [
+        bigquery.SchemaField("article_url", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("topic", "STRING"),
+        bigquery.SchemaField("title", "STRING"),
+        bigquery.SchemaField("author_name", "STRING"),
+        bigquery.SchemaField("page_content", "STRING"),
+        bigquery.SchemaField("first_line", "STRING"),
+        bigquery.SchemaField("published_date", "STRING"), # Raw date from JSON
+        bigquery.SchemaField("clap_count", "INTEGER"),
+        bigquery.SchemaField("comments_count", "INTEGER"),
+        bigquery.SchemaField("hero_image_url", "STRING"),
+        bigquery.SchemaField("author_avatar_url", "STRING"),
+        bigquery.SchemaField("ingested_at", "TIMESTAMP"),
+        bigquery.SchemaField("content_hash", "STRING"),
+        bigquery.SchemaField("content_gated", "BOOLEAN"),
+    ]
