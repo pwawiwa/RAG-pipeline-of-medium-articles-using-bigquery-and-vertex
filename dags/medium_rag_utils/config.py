@@ -6,8 +6,22 @@ class ProjectConfig:
     """Centralized configuration manager using a Singleton-like pattern."""
     
     def __init__(self):
-        # Project-level defaults
-        self.project_id = self._get_var("GCP_PROJECT_ID", "local-test-project")
+        # 1. Environment Detection (to allow safe defaults in tests only)
+        import sys
+        is_test = any(env in os.environ for env in ["PYTEST_CURRENT_TEST", "GITHUB_ACTIONS"]) or "pytest" in sys.modules
+
+        # 2. Project-level defaults
+        self.project_id = self._get_var("GCP_PROJECT_ID", None)
+        
+        if not self.project_id:
+            if is_test:
+                self.project_id = "local-test-project"
+            else:
+                raise ValueError(
+                    "CRITICAL: GCP_PROJECT_ID is missing. \n"
+                    "Please ensure the 'GCP_PROJECT_ID' Variable is set in your Airflow Console."
+                )
+
         self.region = self._get_var("GCP_REGION", "asia-southeast1")
         
         # Storage
