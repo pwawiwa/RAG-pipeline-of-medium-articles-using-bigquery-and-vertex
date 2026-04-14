@@ -1,0 +1,8 @@
+# Path: apt/tools/serve/requirements.txt
+# Purpose: Python dependencies for exporting BQ Silver data to Vertex AI RAG Managed Corpus
+# Idempotent: true
+# Dependencies: none
+
+google-cloud-bigquery==3.20.1
+google-cloud-aiplatform
+python-dotenv==1.0.1

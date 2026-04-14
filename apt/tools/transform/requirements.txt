@@ -1,0 +1,8 @@
+# Path: apt/tools/transform/requirements.txt
+# Purpose: Python dependencies for loading JSON from GCS to BigQuery
+# Idempotent: true
+# Dependencies: none
+
+google-cloud-bigquery==3.20.1
+google-cloud-storage==2.14.0
+python-dotenv==1.0.1

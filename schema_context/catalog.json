@@ -1,0 +1,50 @@
+// Path: schema_context/catalog.json
+// Purpose: Canonical schema defining BQ silver tables, environment shapes, and GCS patterns
+// Idempotent: true
+// Dependencies: none
+
+{
+  "gcp_environment_variables": {
+    "GCP_PROJECT_ID": "Your mapped GCP Project ID",
+    "GCP_REGION": "asia-southeast2",
+    "BRONZE_BUCKET": "GCS Bucket for raw json data",
+    "BQ_DATASET": "BigQuery dataset name",
+    "BQ_TABLE": "silver_medium_articles",
+    "VERTEX_RAG_CORPUS_NAME": "Managed RAG Corpus Name inside Vertex",
+    "VERTEX_EMBEDDING_MODEL": "text-embedding-004",
+    "VERTEX_LLM_MODEL": "gemini-flash-latest",
+    "API_KEY_SECRET_NAME": "Secret manager path for Cloud Run API key",
+    "REQUEST_DELAY_MS": "Delay between scraper requests (e.g., 2000)"
+  },
+  "gcs_path_patterns": {
+    "bronze_feed_urls": "raw/topic-urls/{topic}/{YYYY-MM-DD}/urls.json",
+    "bronze_articles": "raw/articles/{topic}/{YYYY-MM-DD}/{url_slug}.json",
+    "bronze_errors": "errors/{topic}/{YYYY-MM-DD}/{url_slug}.json",
+    "manual_urls_fallback": "manual-urls/{topic}/urls.json"
+  },
+  "bigquery_schema": {
+    "table": "silver_medium_articles",
+    "clustering": ["topic", "published_date"],
+    "partitioning": {
+      "field": "published_date",
+      "type": "DAY"
+    },
+    "merge_key": "article_url",
+    "columns": [
+      { "name": "article_url", "type": "STRING", "mode": "REQUIRED", "description": "Canonical URL of the Medium article" },
+      { "name": "topic", "type": "STRING", "mode": "REQUIRED", "description": "Subject topic slug, e.g., data-engineering" },
+      { "name": "title", "type": "STRING", "mode": "NULLABLE", "description": "Article title from Open Graph or main header" },
+      { "name": "author_name", "type": "STRING", "mode": "NULLABLE", "description": "Parsed author name" },
+      { "name": "page_content", "type": "STRING", "mode": "NULLABLE", "description": "Cleaned static text parsed from article DOM" },
+      { "name": "first_line", "type": "STRING", "mode": "NULLABLE", "description": "The first major sentence or subtitle for embeddings" },
+      { "name": "published_date", "type": "DATE", "mode": "NULLABLE", "description": "Publication date parsed for BQ partition" },
+      { "name": "clap_count", "type": "STRING", "mode": "NULLABLE", "description": "Raw string containing clap metrics (e.g., '1.2k')" },
+      { "name": "comments_count", "type": "STRING", "mode": "NULLABLE", "description": "Total parsed comments metric" },
+      { "name": "hero_image_url", "type": "STRING", "mode": "NULLABLE", "description": "Header image extracted via Open Graph" },
+      { "name": "author_avatar_url", "type": "STRING", "mode": "NULLABLE", "description": "Author profile picture" },
+      { "name": "ingested_at", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "Execution timestamp when article entered Silver" },
+      { "name": "content_hash", "type": "STRING", "mode": "REQUIRED", "description": "SHA-256 of page_content for deduplication or change detection" },
+      { "name": "content_gated", "type": "BOOLEAN", "mode": "REQUIRED", "description": "True if page_content is shorter than 200 chars (Paywall blocked)" }
+    ]
+  }
+}

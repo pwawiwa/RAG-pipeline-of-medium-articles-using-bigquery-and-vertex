@@ -1,0 +1,11 @@
+# Path: api/requirements.txt
+# Purpose: Python dependencies for the FastAPI application layer
+# Idempotent: true
+# Dependencies: none
+
+fastapi==0.110.0
+uvicorn==0.27.1
+google-cloud-secret-manager==2.18.2
+google-cloud-aiplatform
+pydantic==2.6.4
+python-dotenv==1.0.1

@@ -1,0 +1,9 @@
+.rag_venv/
+node_modules/
+dist/
+bq_schema_temp.json
+bq_schema.json
+.DS_Store
+*.pyc
+__pycache__/
+.env

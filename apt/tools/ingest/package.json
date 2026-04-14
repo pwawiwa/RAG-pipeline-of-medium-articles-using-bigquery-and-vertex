@@ -1,0 +1,25 @@
+
+
+{
+  "name": "medium-gcp-ingest",
+  "version": "1.0.0",
+  "description": "Medium scraping tools for Bronze ingestion",
+  "main": "fetch-topic-urls.ts",
+  "type": "module",
+  "scripts": {
+    "fetch-urls": "ts-node --esm fetch-topic-urls.ts",
+    "fetch-articles": "ts-node --esm fetch-medium-article.ts"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.11.0",
+    "cheerio": "^1.0.0-rc.12",
+    "dotenv": "^16.4.5",
+    "fast-xml-parser": "^4.3.6",
+    "got-scraping": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}

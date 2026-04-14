@@ -1,0 +1,16 @@
+{
+  "article_url": "https://medium.com/dummy-article-1",
+  "topic": "data-engineering",
+  "title": "Why Data Engineering is critical in 2026",
+  "author_name": "Jane Doe",
+  "page_content": "Data engineering has evolved massively by 2026. Instead of traditional ETL pipelines, we now rely entirely on AI-driven orchestration, automated schema evolution, and real-time streaming architectures. Vector databases allow real-time analysis of unstructured data, while BigQuery remains a dominant player for structured analytics.",
+  "first_line": "Data engineering has evolved massively by 2026.",
+  "published_date": "2026-04-14T10:00:00Z",
+  "clap_count": "5.5k",
+  "comments_count": "120",
+  "hero_image_url": null,
+  "author_avatar_url": null,
+  "ingested_at": "2026-04-14T12:00:00Z",
+  "content_hash": "dummyhash1",
+  "content_gated": false
+}

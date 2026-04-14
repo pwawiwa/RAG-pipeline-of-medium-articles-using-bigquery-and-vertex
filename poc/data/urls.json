@@ -1,0 +1,16 @@
+{
+  "topic": "data-engineering",
+  "timestamp": "2026-04-14T06:07:44.312Z",
+  "urls": [
+    "https://medium.com/@subham.kalkhuriya/data-clustering-in-microsoft-fabric-data-warehouse-a-practical-guide-6575be46da5a?source=rss------data_engineering-5",
+    "https://medium.com/real-time-data-evolution/ai-agent-data-infrastructure-in-2026-what-your-agents-actually-need-1b9c244d081b?source=rss------data_engineering-5",
+    "https://viprasoftware.medium.com/dbt-at-scale-managing-500-models-without-losing-your-mind-8a2ac7e4e0ca?source=rss------data_engineering-5",
+    "https://medium.com/@nswetha.it2008/building-a-carbon-emission-analyzer-how-i-designed-a-data-validation-framework-for-sustainability-d35595aef867?source=rss------data_engineering-5",
+    "https://medium.com/@Dkumar2709/pyspark-vs-spark-sql-choosing-the-right-approach-for-clean-maintainable-and-high-performance-2371bf6c0842?source=rss------data_engineering-5",
+    "https://medium.com/@rohitr2009/beyond-dataset-catalog-automating-cross-catalog-dashboard-promotion-in-databricks-with-dabs-and-0d397fd8ea81?source=rss------data_engineering-5",
+    "https://vishaluttammane.medium.com/end-to-end-machine-learning-pipeline-design-from-data-ingestion-to-production-grade-systems-24c62e7f2afc?source=rss------data_engineering-5",
+    "https://medium.com/@muthu.bharanidharan/type-widening-in-delta-lake-the-end-of-costly-data-rewrites-d898b405ddae?source=rss------data_engineering-5",
+    "https://medium.com/@sams.annapurna/databricks-compute-strategy-aligning-cost-with-workload-intent-3d0d4759dca2?source=rss------data_engineering-5",
+    "https://towardsdev.com/message-queues-vs-pub-sub-a-simple-guide-to-asynchronous-communication-8e163b3e3011?source=rss------data_engineering-5"
+  ]
+}
