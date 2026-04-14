@@ -65,6 +65,7 @@ def medium_rag_pipeline():
         container_resources=SCRAPER_RESOURCES,
         get_logs=True,
         is_delete_operator_pod=True,
+        image_pull_policy="IfNotPresent",
     )
 
     # Task 2: Read URLs from GCS
@@ -125,6 +126,7 @@ def medium_rag_pipeline():
         container_resources=SCRAPER_RESOURCES,
         get_logs=True,
         is_delete_operator_pod=True,
+        image_pull_policy="IfNotPresent",
     )
 
     # Task 4: Load to BQ, Validate Contracts, Chunk & Embed
