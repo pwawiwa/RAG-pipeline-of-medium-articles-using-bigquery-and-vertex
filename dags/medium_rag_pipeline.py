@@ -75,13 +75,13 @@ default_args = {
 )
 def medium_rag_pipeline():
     
-    # Task 1: Fetch RSS URLs (Node.js in K8s)
+    # Task 1: Fetch RSS URLs (Node.js in K8s) - OPTIMIZED: Direct node call
     fetch_rss = KubernetesPodOperator(
         task_id="fetch_topic_urls",
         name="fetch-topic-urls-pod",
         namespace="composer-user-workloads",
         image=IMAGE_INGEST_NODE,
-        cmds=["npm", "run", "fetch-urls", "---", "--topic", TOPIC, "--date", "{{ ds }}"],
+        cmds=["node", "dist/fetch-topic-urls.js", "---", "--topic", TOPIC, "--date", "{{ ds }}"],
         env_vars=COMMON_ENV,
         container_resources=SCRAPER_RESOURCES,
         get_logs=True,
@@ -123,15 +123,15 @@ def medium_rag_pipeline():
             blob = bucket.blob(manifest_path)
             blob.upload_from_string(json.dumps(chunk), content_type="application/json")
             
-            # Form the command for KPO with explicit date alignment
-            commands.append(["npm", "run", "fetch-articles", "---", "--topic", TOPIC, "--manifest", f"gs://{BRONZE_BUCKET}/{manifest_path}", "--date", ds])
+            # OPTIMIZED: Direct node execution in KPO command
+            commands.append(["node", "dist/fetch-medium-article.js", "---", "--topic", TOPIC, "--manifest", f"gs://{BRONZE_BUCKET}/{manifest_path}", "--date", ds])
             print(f"Created manifest: gs://{BRONZE_BUCKET}/{manifest_path} with {len(chunk)} URLs")
             
         return commands
 
     scraper_commands = prepare_bulk_manifests(article_urls)
 
-    # Task 3: Map the scraper over the manifests (usually just 1 pod for < 1000 articles)
+    # Task 3: Map the scraper over the manifests (OPTIMIZED: 1000 items/pod + Direct node)
     scrape_articles = KubernetesPodOperator.partial(
         task_id="fetch_medium_article",
         name="fetch-medium-article-pod",
@@ -145,22 +145,38 @@ def medium_rag_pipeline():
         cmds=scraper_commands
     )
 
-    # Task 4: Load to BigQuery (Silver)
-    transform_to_silver = BashOperator(
-        task_id="load_to_bigquery_silver",
-        bash_command=f"python /home/airflow/gcs/data/apt/tools/transform/load_to_bigquery.py --topic {TOPIC} --date {{{{ ds }}}}",
-        env=COMMON_ENV
-    )
+    # Task 4: Load to BigQuery (Silver) - OPTIMIZED: Native TaskFlow (Sub-millisecond)
+    @task
+    def transform_to_silver(ds: str = None):
+        from libs.bq_loader import run_load
+        run_load(
+            topic=TOPIC,
+            date=ds,
+            project_id=GCP_PROJECT_ID,
+            bucket_name=BRONZE_BUCKET,
+            dataset=BQ_DATASET,
+            table=BQ_TABLE
+        )
 
-    # Task 5: Sync to Vertex AI RAG (Gold)
-    sync_to_gold = BashOperator(
-        task_id="update_vertex_rag",
-        # Use v3 filename to force GCSfuse cache refresh and bypass stale metadata
-        bash_command=f"python /home/airflow/gcs/data/apt/tools/serve/update_vertex_rag_v3.py --date {{{{ ds }}}}",
-        env=COMMON_ENV
-    )
+    # Task 5: Sync to Vertex AI RAG (Gold) - OPTIMIZED: Native TaskFlow (Sub-millisecond)
+    @task
+    def sync_to_gold(ds: str = None):
+        from libs.vertex_sync import run_sync
+        run_sync(
+            topic=TOPIC,
+            date=ds,
+            project_id=GCP_PROJECT_ID,
+            region=GCP_REGION,
+            dataset=BQ_DATASET,
+            table=BQ_TABLE,
+            bucket_name=BRONZE_BUCKET,
+            corpus_name=CORPUS_NAME
+        )
 
     # Architectural Dependency Graph
-    fetch_rss >> article_urls >> scrape_articles >> transform_to_silver >> sync_to_gold
+    # Note: article_urls and scraper_commands are XComArgs, 
+    # Airflow 2.x manages their task dependencies automatically.
+    fetch_rss >> article_urls
+    scrape_articles >> transform_to_silver(ds="{{ ds }}") >> sync_to_gold(ds="{{ ds }}")
 
 medium_rag_pipeline()
