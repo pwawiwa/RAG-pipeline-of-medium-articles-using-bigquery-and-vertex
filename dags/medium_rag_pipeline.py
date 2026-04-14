@@ -1,5 +1,5 @@
 # dags/medium_rag_pipeline.py
-# Orchestrates the ingest, transform, and sync layers using Airflow TaskFlow
+# Orchestrates the ingest, transform, and native BQ Vector sync layers
 
 import os
 from datetime import datetime, timedelta
@@ -9,7 +9,7 @@ from kubernetes.client import models as k8s
 from google.cloud import storage
 
 # Centralized configuration
-from libs import config
+import libs.config as config
 
 # Shared environment variables
 COMMON_ENV = {
@@ -17,8 +17,7 @@ COMMON_ENV = {
     "GCP_REGION": config.GCP_REGION,
     "BRONZE_BUCKET": config.BRONZE_BUCKET,
     "BQ_DATASET": config.BQ_DATASET,
-    "BQ_TABLE": config.BQ_TABLE,
-    "VERTEX_RAG_CORPUS_NAME": config.VERTEX_RAG_CORPUS_NAME
+    "BQ_TABLE": config.BQ_TABLE
 }
 
 # Resource Management
@@ -39,11 +38,17 @@ default_args = {
     schedule="@daily",
     start_date=datetime(2026, 1, 1),
     catchup=False,
-    tags=["medium", "rag", "production-ready"],
+    tags=["medium", "bq-vector", "data-contracts"],
 )
 def medium_rag_pipeline():
     
-    # Task 1: Fetch RSS URLs (Node.js in K8s)
+    # Task 0: Optional Infrastructure Setup (One-off)
+    @task
+    def setup_bq_infrastructure():
+        from libs.setup_bq import setup_infrastructure
+        setup_infrastructure(config.GCP_PROJECT_ID, config.GCP_REGION, config.BQ_DATASET)
+
+    # Task 1: Fetch RSS URLs
     fetch_rss = KubernetesPodOperator(
         task_id="fetch_topic_urls",
         name="fetch-topic-urls-pod",
@@ -56,7 +61,7 @@ def medium_rag_pipeline():
         is_delete_operator_pod=True,
     )
 
-    # Task 2: Read URLs emitted by Task 1 from GCS
+    # Task 2: Read URLs from GCS
     @task
     def extract_urls_from_gcs(ds: str = None):
         storage_client = storage.Client(project=config.GCP_PROJECT_ID)
@@ -94,8 +99,7 @@ def medium_rag_pipeline():
             
         return commands
 
-    # Task 3: Map the scraper over the manifests
-    # Note: KPO .expand uses dynamic task mapping
+    # Task 3: Map the scraper
     scrape_articles = KubernetesPodOperator.partial(
         task_id="fetch_medium_article",
         name="fetch-medium-article-pod",
@@ -109,9 +113,9 @@ def medium_rag_pipeline():
         cmds=prepare_bulk_manifests(urls=extract_urls_from_gcs(ds="{{ ds }}"), ds="{{ ds }}")
     )
 
-    # Task 4: Load to BigQuery (Silver)
+    # Task 4: Load to BQ, Validate Contracts, Chunk & Embed
     @task
-    def transform_to_silver(ds: str = None):
+    def transform_and_vectorize(ds: str = None):
         from libs.bq_loader import run_load
         run_load(
             topic=config.TOPIC,
@@ -122,22 +126,9 @@ def medium_rag_pipeline():
             table=config.BQ_TABLE
         )
 
-    # Task 5: Sync to Vertex AI RAG (Gold)
-    @task
-    def sync_to_gold(ds: str = None):
-        from libs.vertex_sync import run_sync
-        run_sync(
-            topic=config.TOPIC,
-            date=ds,
-            project_id=config.GCP_PROJECT_ID,
-            region=config.GCP_REGION,
-            dataset=config.BQ_DATASET,
-            table=config.BQ_TABLE,
-            bucket_name=config.BRONZE_BUCKET,
-            corpus_name=config.VERTEX_RAG_CORPUS_NAME
-        )
-
     # Architectural Dependency Graph
-    fetch_rss >> scrape_articles >> transform_to_silver(ds="{{ ds }}") >> sync_to_gold(ds="{{ ds }}")
+    # 1. Setup Infra (only if needed)
+    # 2. Pipeline
+    setup_bq_infrastructure() >> fetch_rss >> scrape_articles >> transform_and_vectorize(ds="{{ ds }}")
 
 medium_rag_pipeline()
