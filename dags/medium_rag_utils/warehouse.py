@@ -69,7 +69,7 @@ class BigQueryManager:
             source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
             schema=get_bq_schema(),
             write_disposition="WRITE_TRUNCATE",
-            max_bad_records=100,  # Gracefully skip malformed files
+            max_bad_records=1000,  # Gracefully skip malformed files
             ignore_unknown_values=True
         )
         logger.info(f"Triggering BQ LOAD from {source_uri} to {temp_table_id}")

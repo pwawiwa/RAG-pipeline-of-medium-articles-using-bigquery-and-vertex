@@ -50,7 +50,7 @@ function generateSlug(url: string): string {
 async function uploadToGcs(path: string, data: any) {
   const bucket = storage.bucket(bucketName!);
   const file = bucket.file(path);
-  await file.save(JSON.stringify(data, null, 2), { contentType: 'application/json' });
+  await file.save(JSON.stringify(data), { contentType: 'application/json' });
   console.log(`[SUCCESS] Uploaded to gs://${bucketName}/${path}`);
 }
 
