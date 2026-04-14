@@ -128,7 +128,7 @@ class BigQueryManager:
             chunk_text as content,
             CURRENT_TIMESTAMP() as ingested_at
           FROM `{cfg.silver_table_id}`,
-          UNNEST(REGEXP_EXTRACT_ALL(page_content, r'.{1,800}(?:\s|$)')) as chunk_text
+          UNNEST(REGEXP_EXTRACT_ALL(page_content, r'.{{1,800}}(?:\s|$)')) as chunk_text
           WHERE published_date = '{date}'
             AND published_date IS NOT NULL
         )
