@@ -68,8 +68,8 @@ def get_bq_schema():
         bigquery.SchemaField("page_content", "STRING"),
         bigquery.SchemaField("first_line", "STRING"),
         bigquery.SchemaField("published_date", "STRING"), # Raw date from JSON
-        bigquery.SchemaField("clap_count", "INTEGER"),
-        bigquery.SchemaField("comments_count", "INTEGER"),
+        bigquery.SchemaField("clap_count", "STRING"),
+        bigquery.SchemaField("comments_count", "STRING"),
         bigquery.SchemaField("hero_image_url", "STRING"),
         bigquery.SchemaField("author_avatar_url", "STRING"),
         bigquery.SchemaField("ingested_at", "TIMESTAMP"),
