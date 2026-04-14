@@ -125,14 +125,14 @@ class BigQueryManager:
           SELECT 
             article_url,
             GENERATE_UUID() as chunk_id,
-            chunk_text,
+            chunk_text as content,
             CURRENT_TIMESTAMP() as ingested_at
           FROM `{cfg.silver_table_id}`,
-          UNNEST(REGEXP_EXTRACT_ALL(page_content, r'.{{1,800}}(?:\\s|$)')) as chunk_text
+          UNNEST(REGEXP_EXTRACT_ALL(page_content, r'.{1,800}(?:\s|$)')) as chunk_text
           WHERE published_date = '{date}'
             AND published_date IS NOT NULL
         )
-        SELECT article_url, chunk_id, chunk_text, ml_generate_embedding_result, ingested_at
+        SELECT article_url, chunk_id, content as chunk_text, ml_generate_embedding_result, ingested_at
         FROM ML.GENERATE_EMBEDDING(
           MODEL `{cfg.embedding_model_id}`,
           (SELECT * FROM chunks),
