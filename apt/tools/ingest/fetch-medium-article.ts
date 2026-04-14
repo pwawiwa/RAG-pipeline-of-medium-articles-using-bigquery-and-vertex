@@ -21,14 +21,19 @@ if (!bucketName) {
 
 const args = process.argv.slice(2);
 const urlIndex = args.indexOf('--url');
+const manifestIndex = args.indexOf('--manifest');
 const topicIndex = args.indexOf('--topic');
 
-if (urlIndex === -1 || topicIndex === -1 || !args[urlIndex + 1] || !args[topicIndex + 1]) {
-  console.error('[ERROR] Must provide --url <url> and --topic <topic-slug>');
+if (topicIndex === -1 || !args[topicIndex + 1]) {
+  console.error('[ERROR] Must provide --topic <topic-slug>');
   process.exit(1);
 }
 
-const targetUrl = args[urlIndex + 1];
+if (urlIndex === -1 && manifestIndex === -1) {
+  console.error('[ERROR] Must provide either --url <url> or --manifest <gs://path>');
+  process.exit(1);
+}
+
 const topic = args[topicIndex + 1];
 const delayMs = Number(process.env.REQUEST_DELAY_MS ?? 1000);
 const today = new Date().toISOString().split('T')[0];
@@ -37,7 +42,6 @@ function generateSlug(url: string): string {
   const parts = url.split('?')[0].split('/');
   return parts[parts.length - 1] || crypto.createHash('md5').update(url).digest('hex');
 }
-const urlSlug = generateSlug(targetUrl);
 
 async function uploadToGcs(path: string, data: any) {
   const bucket = storage.bucket(bucketName!);
@@ -46,7 +50,8 @@ async function uploadToGcs(path: string, data: any) {
   console.log(`[SUCCESS] Uploaded to gs://${bucketName}/${path}`);
 }
 
-async function run() {
+async function scrapeAndUpload(targetUrl: string, topic: string) {
+  const urlSlug = generateSlug(targetUrl);
   const gcsPath = `raw/articles/${topic}/${today}/${urlSlug}.json`;
   
   try {
@@ -59,23 +64,19 @@ async function run() {
       return;
     }
   } catch (err: any) {
-    console.warn(`[WARN] Could not check existence in GCS (ignoring and proceeding): ${err.message}`);
+    console.warn(`[WARN] Could not check existence in GCS: ${err.message}`);
   }
 
-  console.log(`[INFO] Waiting ${delayMs}ms before scrape...`);
-  await new Promise(r => setTimeout(r, delayMs));
-
+  console.log(`[INFO] Scraping: ${targetUrl}`);
   try {
-    const { body: html } = await gotScraping.get({ url: targetUrl, timeout: { request: 10000 } });
+    const { body: html } = await gotScraping.get({ url: targetUrl, timeout: { request: 15000 } });
     const $ = cheerio.load(html);
 
-    // Extraction logic based on scraper-specification.md
     const title = $('meta[property="og:title"]').attr('content') || $('h1').first().text().trim();
     const author_name = $('meta[name="author"]').attr('content') || $('[data-testid="authorName"]').first().text().trim();
     const published_date = $('meta[property="article:published_time"]').attr('content') || $('time').first().attr('datetime');
     const hero_image_url = $('meta[property="og:image"]').attr('content');
     
-    // Attempt standard selectors for body content
     let paragraphs = $('article p').map((i, el) => $(el).text().trim()).get();
     if (paragraphs.length === 0) {
       paragraphs = $('section p').map((i, el) => $(el).text().trim()).get();
@@ -83,10 +84,8 @@ async function run() {
     const page_content = paragraphs.join('\n\n').trim();
     const first_line = paragraphs[0] || null;
 
-    // Clap block logic
     const clap_count = $('button[data-testid="headerClapButton"]').text().trim() || null;
     const comments_count = $('button[aria-label="responses"]').text().trim() || null;
-    const author_avatar_url = null; // Spec marks this as omitted in v1 commonly
 
     const content_hash = crypto.createHash('sha256').update(page_content).digest('hex');
     const content_gated = page_content.length < 200;
@@ -102,13 +101,15 @@ async function run() {
       clap_count,
       comments_count,
       hero_image_url,
-      author_avatar_url,
+      author_avatar_url: null,
       ingested_at: new Date().toISOString(),
       content_hash,
       content_gated
     };
 
-    await uploadToGcs(`raw/articles/${topic}/${today}/${urlSlug}.json`, payload);
+    await uploadToGcs(gcsPath, payload);
+    // Anti-throttling delay inside the loop
+    if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
 
   } catch (error: any) {
     console.error(`[WARN] Soft failure on ${targetUrl}:`, error.message);
@@ -119,6 +120,26 @@ async function run() {
       failed_at: new Date().toISOString()
     };
     await uploadToGcs(`errors/${topic}/${today}/${urlSlug}.json`, errorPayload);
+  }
+}
+
+async function run() {
+  if (urlIndex !== -1) {
+    const targetUrl = args[urlIndex + 1];
+    await scrapeAndUpload(targetUrl, topic);
+  } else if (manifestIndex !== -1) {
+    const manifestPath = args[manifestIndex + 1].replace('gs://', '');
+    const [bucketPart, ...rest] = manifestPath.split('/');
+    const filePath = rest.join('/');
+    
+    console.log(`[INFO] Loading manifest from gs://${bucketPart}/${filePath}`);
+    const [content] = await storage.bucket(bucketPart).file(filePath).download();
+    const urls: string[] = JSON.parse(content.toString());
+    
+    console.log(`[INFO] Found ${urls.length} URLs in manifest.`);
+    for (const url of urls) {
+      await scrapeAndUpload(url, topic);
+    }
   }
 }
 

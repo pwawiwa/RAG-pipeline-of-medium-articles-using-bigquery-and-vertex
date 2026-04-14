@@ -34,10 +34,10 @@ COMMON_ENV = {
     "VERTEX_RAG_CORPUS_NAME": CORPUS_NAME
 }
 
-# Senior Recommendation: Explicit Resource Management
+# Senior Recommendation: Explicit Resource Management (Increased for Bulk Mode)
 SCRAPER_RESOURCES = k8s.V1ResourceRequirements(
-    requests={"cpu": "200m", "memory": "256Mi"},
-    limits={"cpu": "500m", "memory": "512Mi"}
+    requests={"cpu": "500m", "memory": "512Mi"},
+    limits={"cpu": "1000m", "memory": "1Gi"}
 )
 
 def fetch_failed_callback(context):
@@ -60,7 +60,7 @@ def fetch_failed_callback(context):
 
 default_args = {
     "owner": "data-engineering-team",
-    "retries": 3,
+    "retries": 1, # Reduced retry as scraper now handles failure internally per-article
     "retry_delay": timedelta(minutes=5),
     "on_failure_callback": fetch_failed_callback,
 }
@@ -71,7 +71,7 @@ default_args = {
     schedule="@daily",
     start_date=datetime(2026, 1, 1),
     catchup=False,
-    tags=["medium", "rag", "bronze-silver-gold"],
+    tags=["medium", "rag", "bulk-manifest", "1000x"],
 )
 def medium_rag_pipeline():
     
@@ -105,15 +105,33 @@ def medium_rag_pipeline():
 
     article_urls = extract_urls_from_gcs()
 
-    # Helper task to format command strings for the dynamic pods
+    # Helper task to Chunk URLs into Manifests (1000 urls per batch)
     @task
-    def prepare_scraper_commands(urls: list):
-        return [["npm", "run", "fetch-articles", "---", "--topic", TOPIC, "--url", url] for url in urls]
+    def prepare_bulk_manifests(urls: list, ds: str = None):
+        if not urls:
+            return []
+            
+        chunk_size = 1000
+        chunks = [urls[i : i + chunk_size] for i in range(0, len(urls), chunk_size)]
+        
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(BRONZE_BUCKET)
+        
+        commands = []
+        for i, chunk in enumerate(chunks):
+            manifest_path = f"manifests/{TOPIC}/{ds}/chunk_{i}.json"
+            blob = bucket.blob(manifest_path)
+            blob.upload_from_string(json.dumps(chunk), content_type="application/json")
+            
+            # Form the command for KPO
+            commands.append(["npm", "run", "fetch-articles", "---", "--topic", TOPIC, "--manifest", f"gs://{BRONZE_BUCKET}/{manifest_path}"])
+            print(f"Created manifest: gs://{BRONZE_BUCKET}/{manifest_path} with {len(chunk)} URLs")
+            
+        return commands
 
-    scraper_commands = prepare_scraper_commands(article_urls)
+    scraper_commands = prepare_bulk_manifests(article_urls)
 
-    # Task 3: Dynamically map the article scraper over every URL individually
-    # Required by specification: "One execution per URL"
+    # Task 3: Map the scraper over the manifests (usually just 1 pod for < 1000 articles)
     scrape_articles = KubernetesPodOperator.partial(
         task_id="fetch_medium_article",
         name="fetch-medium-article-pod",
@@ -124,19 +142,17 @@ def medium_rag_pipeline():
         get_logs=True,
         is_delete_operator_pod=True,
     ).expand(
-        # Senior Recommendation: Drip-feed scrapers to prevent cluster starvation
         cmds=scraper_commands
     )
 
-    # Task 4: Load to BigQuery (Silver) using BashOperator to invoke deployed Python script
+    # Task 4: Load to BigQuery (Silver)
     transform_to_silver = BashOperator(
         task_id="load_to_bigquery_silver",
-        # Assuming apt/tools are deployed alongside DAGs in Composer
         bash_command=f"python /home/airflow/gcs/data/apt/tools/transform/load_to_bigquery.py --topic {TOPIC} --date {{{{ ds }}}}",
         env=COMMON_ENV
     )
 
-    # Task 5: Sync to Vertex AI RAG (Gold) using BashOperator
+    # Task 5: Sync to Vertex AI RAG (Gold)
     sync_to_gold = BashOperator(
         task_id="update_vertex_rag",
         bash_command=f"python /home/airflow/gcs/data/apt/tools/serve/update_vertex_rag.py --date {{{{ ds }}}}",
