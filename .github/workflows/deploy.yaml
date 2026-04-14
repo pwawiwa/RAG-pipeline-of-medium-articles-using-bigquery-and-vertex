@@ -11,7 +11,9 @@ on:
       - 'api/**'
       - 'apt/**'
       - 'dags/**'
+      - 'tests/**'
       - '.github/workflows/deploy.yaml'
+  workflow_dispatch: # Enable manual triggering
 
 env:
   PROJECT_ID: "my-playground-492309"
