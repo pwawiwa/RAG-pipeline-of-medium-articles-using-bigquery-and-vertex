@@ -105,6 +105,7 @@ class BigQueryManager:
         self.client.query(merge_query).result()
         self.client.delete_table(temp_table_id, not_found_ok=True)
 
+    def generate_embeddings(self, date: str):
         """Chunks and generates vectors for the specified date. Logic is now idempotent."""
         logger.info(f"Generating embeddings for {date} (Silver -> Gold)...")
         # 1. Clean existing chunks for these articles to prevent bloat
