@@ -47,7 +47,27 @@ jobs:
       - name: Configure Docker Local Auth
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
-      # 2. Build and Push Containers
+      # 2. Verify DAG Integrity (Senior Engineering Gatekeeper)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Airflow for Validation
+        run: |
+          pip install apache-airflow \
+            apache-airflow-providers-cncf-kubernetes \
+            google-cloud-storage \
+            google-cloud-bigquery \
+            kubernetes
+
+      - name: Verify DAG Syntax
+        run: |
+          echo "[INFO] Running Syntax Validation for dags/medium_rag_pipeline.py"
+          python3 dags/medium_rag_pipeline.py
+          echo "[SUCCESS] DAG parsed successfully!"
+
+      # 3. Build and Push Containers
       - name: Build & Push Ingest Image
         run: gcloud builds submit ./apt/tools/ingest --tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/medium-ingest-node:latest --project ${{ env.PROJECT_ID }} --region ${{ env.REGION }}
 
