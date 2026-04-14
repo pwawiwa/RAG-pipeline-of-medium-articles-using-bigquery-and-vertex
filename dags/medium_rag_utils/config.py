@@ -6,9 +6,11 @@ class ProjectConfig:
     """Centralized configuration manager using a Singleton-like pattern."""
     
     def __init__(self):
-        # 1. Environment Detection (to allow safe defaults in tests only)
+        # 1. Environment Detection (to allow safe defaults in tests/setup)
         import sys
-        is_test = any(env in os.environ for env in ["PYTEST_CURRENT_TEST", "GITHUB_ACTIONS"]) or "pytest" in sys.modules
+        is_test_env = any(env in os.environ for env in ["PYTEST_CURRENT_TEST", "GITHUB_ACTIONS"]) or "pytest" in sys.modules
+        is_standalone = any(s in sys.argv[0] for s in ["setup_bq.py", "scripts/"])
+        is_test = is_test_env or is_standalone
 
         # 2. Project-level defaults
         self.project_id = self._get_var("GCP_PROJECT_ID", None)
@@ -40,9 +42,14 @@ class ProjectConfig:
 
     def _get_var(self, name, default):
         """Fetches from Airflow Variables -> Environment -> Default."""
+        # Standalone scripts shouldn't hit the Airflow DB
+        if "AIRFLOW_HOME" not in os.environ and "AIRFLOW_CONFIG" not in os.environ:
+             return os.getenv(name, default)
+
         try:
             return Variable.get(name)
         except Exception:
+            # Handle uninitialized local DB or missing variables
             return os.getenv(name, default)
 
     @property
