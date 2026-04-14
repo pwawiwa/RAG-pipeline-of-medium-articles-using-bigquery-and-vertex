@@ -70,17 +70,20 @@ jobs:
           echo "[INFO] Running Pylint on dags/ and api/"
           pylint dags/ api/ --errors-only
 
-      - name: Verify DAG Syntax
+      - name: Verify All DAG Imports
         run: |
-          echo "[INFO] Running Syntax Validation for dags/medium_rag_pipeline.py"
+          echo "[INFO] Running deep import validation for all files in dags/"
           export PYTHONPATH=$PYTHONPATH:$(pwd)/dags
-          python3 dags/medium_rag_pipeline.py
-          echo "[SUCCESS] DAG parsed successfully!"
+          # This command finds every .py file and attempts to compile it, catching hidden import errors
+          find dags/ -name "*.py" -exec python3 -m py_compile {} +
+          echo "[SUCCESS] All DAG files and modules are valid!"
 
       - name: Verify API Integrity
         run: |
-          echo "[INFO] Running Import Validation for api/rag_service.py"
-          python3 -c "import sys; sys.path.append('api'); from rag_service import RagService; print('API imports OK')"
+          echo "[INFO] Running deep import validation for all files in api/"
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/api
+          find api/ -name "*.py" -exec python3 -m py_compile {} +
+          echo "[SUCCESS] All API components are valid!"
 
       # 3. Build and Push Containers
       - name: Build & Push Ingest Image

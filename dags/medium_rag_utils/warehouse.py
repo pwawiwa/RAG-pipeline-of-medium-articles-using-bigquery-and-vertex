@@ -1,12 +1,12 @@
 # dags/medium_rag_utils/warehouse.py
 from google.cloud import bigquery
-from .config import cfg
-from .data_contracts import get_validation_query
+from medium_rag_utils import config
+from medium_rag_utils.data_contracts import get_validation_query
 
 class BigQueryManager:
     """Manages all Data Warehouse operations including DDL, loading, and indexing."""
     
-    def __init__(self, project_id=cfg.project_id):
+    def __init__(self, project_id=config.cfg.project_id):
         self.client = bigquery.Client(project=project_id)
 
     def setup_infrastructure(self):

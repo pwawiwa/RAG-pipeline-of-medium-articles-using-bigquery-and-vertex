@@ -5,7 +5,7 @@ from google.cloud import storage
 from google.api_core import exceptions as google_exceptions
 import vertexai
 from vertexai.preview import rag
-from . import config
+from medium_rag_utils import config
 
 def run_sync(topic: str, date: str, project_id: str, region: str, dataset: str, table: str, bucket_name: str, corpus_name: str):
     print(f"[V2-SYNC] Starting Defensive Vertex AI sync for topic: {topic}, date: {date}")

@@ -1,7 +1,7 @@
 # dags/medium_rag_utils/medium_source.py
-from .base_collector import BaseCollector
-from .warehouse import BigQueryManager
-from .config import cfg
+from medium_rag_utils.base_collector import BaseCollector
+from medium_rag_utils.warehouse import BigQueryManager
+from medium_rag_utils.config import cfg
 
 class MediumCollector(BaseCollector):
     """Implementation of the RAG pipeline for Medium articles."""
