@@ -120,12 +120,12 @@ def medium_rag_pipeline():
         image=IMAGE_INGEST_NODE,
         env_vars=COMMON_ENV,
         container_resources=SCRAPER_RESOURCES,
+        map_index_template="{{ task.op_kwargs['cmds'][7] }}", # Show URL in Airflow UI
         get_logs=True,
         is_delete_operator_pod=True,
     ).expand(
         # Senior Recommendation: Drip-feed scrapers to prevent cluster starvation
-        cmds=scraper_commands,
-        map_index_template="{{ task.op_kwargs['cmds'][7] }}" # Show URL in Airflow UI
+        cmds=scraper_commands
     )
 
     # Task 4: Load to BigQuery (Silver) using BashOperator to invoke deployed Python script
