@@ -81,7 +81,7 @@ def medium_rag_pipeline():
         name="fetch-topic-urls-pod",
         namespace="composer-user-workloads",
         image=IMAGE_INGEST_NODE,
-        cmds=["npm", "run", "fetch-urls", "---", "--topic", TOPIC],
+        cmds=["npm", "run", "fetch-urls", "---", "--topic", TOPIC, "--date", "{{ ds }}"],
         env_vars=COMMON_ENV,
         container_resources=SCRAPER_RESOURCES,
         get_logs=True,
@@ -100,7 +100,7 @@ def medium_rag_pipeline():
             
         data = json.loads(blob.download_as_text())
         urls = data.get("urls", [])
-        print(f"Found {len(urls)} URLs to scrape.")
+        print(f"Found {len(urls)} URLs for date {ds}.")
         return urls
 
     article_urls = extract_urls_from_gcs()
@@ -123,8 +123,8 @@ def medium_rag_pipeline():
             blob = bucket.blob(manifest_path)
             blob.upload_from_string(json.dumps(chunk), content_type="application/json")
             
-            # Form the command for KPO
-            commands.append(["npm", "run", "fetch-articles", "---", "--topic", TOPIC, "--manifest", f"gs://{BRONZE_BUCKET}/{manifest_path}"])
+            # Form the command for KPO with explicit date alignment
+            commands.append(["npm", "run", "fetch-articles", "---", "--topic", TOPIC, "--manifest", f"gs://{BRONZE_BUCKET}/{manifest_path}", "--date", ds])
             print(f"Created manifest: gs://{BRONZE_BUCKET}/{manifest_path} with {len(chunk)} URLs")
             
         return commands

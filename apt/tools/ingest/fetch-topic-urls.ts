@@ -27,7 +27,11 @@ if (topicFlagIndex === -1 || !args[topicFlagIndex + 1]) {
 
 const topic = args[topicFlagIndex + 1];
 const targetUrl = `https://medium.com/feed/tag/${topic}`;
-const today = new Date().toISOString().split('T')[0];
+
+const dateFlagIndex = args.indexOf('--date');
+const today = (dateFlagIndex !== -1 && args[dateFlagIndex + 1]) 
+  ? args[dateFlagIndex + 1] 
+  : new Date().toISOString().split('T')[0];
 
 async function fetchFeed(url: string, retries = 0): Promise<string> {
   try {

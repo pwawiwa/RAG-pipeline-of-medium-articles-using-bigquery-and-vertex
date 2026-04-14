@@ -36,7 +36,11 @@ if (urlIndex === -1 && manifestIndex === -1) {
 
 const topic = args[topicIndex + 1];
 const delayMs = Number(process.env.REQUEST_DELAY_MS ?? 1000);
-const today = new Date().toISOString().split('T')[0];
+
+const dateFlagIndex = args.indexOf('--date');
+const today = (dateFlagIndex !== -1 && args[dateFlagIndex + 1]) 
+  ? args[dateFlagIndex + 1] 
+  : new Date().toISOString().split('T')[0];
 
 function generateSlug(url: string): string {
   const parts = url.split('?')[0].split('/');
