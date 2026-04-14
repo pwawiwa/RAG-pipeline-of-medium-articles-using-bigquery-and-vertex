@@ -7,6 +7,7 @@ import os
 import argparse
 from datetime import datetime
 from google.cloud import bigquery
+from google.cloud import storage
 import vertexai
 from vertexai.preview import rag
 from dotenv import load_dotenv
@@ -17,9 +18,10 @@ GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID")
 GCP_REGION = os.getenv("GCP_REGION")
 BQ_DATASET = os.getenv("BQ_DATASET")
 BQ_TABLE = os.getenv("BQ_TABLE")
+BRONZE_BUCKET = os.getenv("BRONZE_BUCKET")
 CORPUS_NAME = os.getenv("VERTEX_RAG_CORPUS_NAME")
 
-if not all([GCP_PROJECT_ID, GCP_REGION, BQ_DATASET, BQ_TABLE, CORPUS_NAME]):
+if not all([GCP_PROJECT_ID, GCP_REGION, BQ_DATASET, BQ_TABLE, BRONZE_BUCKET, CORPUS_NAME]):
     print("[ERROR] Missing required environment variables from catalog.json schema")
     exit(1)
 
@@ -57,17 +59,16 @@ def main():
     # In Vertex RAG, files are uniquely identified by a name hash internally.
     # We will spool the text to a temporary local staging directory to utilize batch upload.
     
-    staging_dir = "/tmp/rag_staging"
-    os.makedirs(staging_dir, exist_ok=True)
+    storage_client = storage.Client(project=GCP_PROJECT_ID)
+    bucket = storage_client.bucket(BRONZE_BUCKET)
+    staging_prefix = f"staging/vertex-rag/{target_date}/"
+    gcs_staging_uri = f"gs://{BRONZE_BUCKET}/{staging_prefix}"
     
-    print(f"[INFO] Spooling {len(rows)} articles to staging...")
+    print(f"[INFO] Uploading {len(rows)} articles to GCS staging: {gcs_staging_uri}")
     for row in rows:
-        # Create a safe filename using a hash or slug
         slug = row['article_url'].split("/")[-1].split("?")[0]
         if not slug:
            slug = str(hash(row['article_url']))
-        
-        file_path = os.path.join(staging_dir, f"{slug}.txt")
         
         # Structure the content for optimal RAG chunking
         rag_text = f"Title: {row['title']}\n"
@@ -76,15 +77,15 @@ def main():
         rag_text += f"URL: {row['article_url']}\n\n"
         rag_text += row['page_content']
         
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(rag_text)
+        blob = bucket.blob(f"{staging_prefix}{slug}.txt")
+        blob.upload_from_string(rag_text, content_type="text/plain")
 
     # 3. Import path into Managed Corpus
     print(f"[INFO] Importing files into Vertex RAG Corpus: {CORPUS_NAME}")
     try:
         response = rag.import_files(
             corpus_name=CORPUS_NAME,
-            paths=[staging_dir],
+            paths=[gcs_staging_uri],
             chunk_size=1024,
             chunk_overlap=128
         )
