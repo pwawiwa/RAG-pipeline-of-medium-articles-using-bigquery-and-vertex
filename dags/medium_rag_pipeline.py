@@ -13,11 +13,12 @@ from kubernetes.client import models as k8s
 from google.cloud import storage
 
 # Environment and Schema bindings (Matches catalog.json)
-BRONZE_BUCKET = os.environ.get("BRONZE_BUCKET", "medium-bronze-asia-southeast1-my-playground-492309")
-TOPIC = "data-engineering" # Default target topic
+TOPIC = "data-engineering"
+PROJECT_ID = "my-playground-492309"
+BRONZE_BUCKET = "medium-bronze-my-playground-492309"
+GCP_REGION = "asia-southeast1"
 IMAGE_INGEST_NODE = "asia-southeast1-docker.pkg.dev/my-playground-492309/medium-repo/medium-ingest-node:latest"
 GCP_PROJECT_ID = "my-playground-492309"
-GCP_REGION = "asia-southeast1"
 BQ_DATASET = "medium_pipeline"
 BQ_TABLE = "silver_medium_articles"
 # Vertex RAG Corpus - Managed by GCP
@@ -47,7 +48,7 @@ def fetch_failed_callback(context):
     
     storage_client = storage.Client()
     bucket = storage_client.bucket(BRONZE_BUCKET)
-    blob = bucket.file(f"errors/airflow/{TOPIC}/{execution_date}/{task_id}_failure.json")
+    blob = bucket.blob(f"errors/airflow/{TOPIC}/{execution_date}/{task_id}_failure.json")
     
     payload = {
         "task_id": task_id,
@@ -120,7 +121,6 @@ def medium_rag_pipeline():
         image=IMAGE_INGEST_NODE,
         env_vars=COMMON_ENV,
         container_resources=SCRAPER_RESOURCES,
-        map_index_template="{{ task.op_kwargs['cmds'][7] }}", # Show URL in Airflow UI
         get_logs=True,
         is_delete_operator_pod=True,
     ).expand(
