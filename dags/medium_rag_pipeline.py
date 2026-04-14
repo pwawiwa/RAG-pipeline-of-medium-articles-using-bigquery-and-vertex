@@ -125,8 +125,6 @@ def medium_rag_pipeline():
         container_resources=SCRAPER_RESOURCES,
         get_logs=True,
         is_delete_operator_pod=True,
-    ).expand(
-        cmds=prepare_bulk_manifests(urls=extract_urls_from_gcs(ds="{{ ds }}"), ds="{{ ds }}")
     )
 
     # Task 4: Load to BQ, Validate Contracts, Chunk & Embed
