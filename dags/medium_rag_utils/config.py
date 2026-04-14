@@ -7,9 +7,7 @@ class ProjectConfig:
     
     def __init__(self):
         # Project-level defaults
-        self.project_id = self._get_var("GCP_PROJECT_ID", None)
-        if not self.project_id:
-            raise ValueError("GCP_PROJECT_ID must be set in Airflow Variables or Environment.")
+        self.project_id = self._get_var("GCP_PROJECT_ID", "local-test-project")
         self.region = self._get_var("GCP_REGION", "asia-southeast1")
         
         # Storage
