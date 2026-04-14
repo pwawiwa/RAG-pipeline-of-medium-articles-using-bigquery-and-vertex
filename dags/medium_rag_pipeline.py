@@ -2,7 +2,14 @@
 # Orchestrates the ingest, transform, and native BQ Vector sync layers
 
 import os
+import sys
 from datetime import datetime, timedelta
+
+# Bootstrap: Ensure the DAG directory is in the path for module resolution
+dag_path = os.path.dirname(os.path.abspath(__file__))
+if dag_path not in sys.path:
+    sys.path.append(dag_path)
+
 from airflow.decorators import dag, task
 from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from kubernetes.client import models as k8s

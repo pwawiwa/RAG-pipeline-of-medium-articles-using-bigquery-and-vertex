@@ -64,8 +64,14 @@ jobs:
       - name: Verify DAG Syntax
         run: |
           echo "[INFO] Running Syntax Validation for dags/medium_rag_pipeline.py"
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/dags
           python3 dags/medium_rag_pipeline.py
           echo "[SUCCESS] DAG parsed successfully!"
+
+      - name: Verify API Integrity
+        run: |
+          echo "[INFO] Running Import Validation for api/rag_service.py"
+          python3 -c "import sys; sys.path.append('api'); from rag_service import RagService; print('API imports OK')"
 
       # 3. Build and Push Containers
       - name: Build & Push Ingest Image
@@ -90,9 +96,9 @@ jobs:
           # Retrieve the DAG bucket name dynamically
           DAG_BUCKET=$(gcloud composer environments describe ${{ env.COMPOSER_ENV_NAME }} --location ${{ env.REGION }} --project ${{ env.PROJECT_ID }} --format="value(config.dagGcsPrefix)")
           
-          # Sync DAGs
+          # Sync DAGs recursively to include subdirectories like medium_rag_utils
           echo "[INFO] Syncing DAGs to ${DAG_BUCKET}"
-          gcloud storage cp dags/*.py ${DAG_BUCKET}/
+          gcloud storage rsync dags ${DAG_BUCKET} --recursive --delete-unmatched-destination-objects
           
           # Sync Python utility tools used by the DAG tasks
           echo "[INFO] Syncing Python Tools to Data folder"
