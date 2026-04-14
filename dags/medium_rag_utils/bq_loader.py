@@ -2,8 +2,8 @@
 import os
 from datetime import datetime
 from google.cloud import bigquery
-from . import config
-from . import data_contracts
+from medium_rag_utils import config
+from medium_rag_utils import data_contracts
 
 def upsert_to_bigquery(topic: str, date: str, project_id: str, bucket_name: str, dataset: str, table: str):
     """Loads raw JSON article blobs from GCS to BQ via native LOAD and MERGE."""

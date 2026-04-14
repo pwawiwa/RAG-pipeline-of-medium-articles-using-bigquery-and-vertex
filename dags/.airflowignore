@@ -1,4 +1,4 @@
 # dags/.airflowignore
 # Prevent Airflow from scanning the utilities folder for DAGs
 # This stops "attempted relative import with no known parent package" errors
-medium_rag_utils/
+.*medium_rag_utils/.*

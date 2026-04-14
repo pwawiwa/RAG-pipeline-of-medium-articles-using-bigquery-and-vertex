@@ -1,7 +1,7 @@
 # dags/libs/setup_bq.py
 import os
 from google.cloud import bigquery
-from . import config
+from medium_rag_utils import config
 
 def setup_infrastructure(project_id: str, location: str, dataset: str):
     """
@@ -56,5 +56,5 @@ def setup_infrastructure(project_id: str, location: str, dataset: str):
     print(f"[SUCCESS] Table {chunks_table_id} ready.")
 
 if __name__ == "__main__":
-    from . import config
+    from medium_rag_utils import config
     setup_infrastructure(config.cfg.project_id, config.cfg.region, config.cfg.bq_dataset)
