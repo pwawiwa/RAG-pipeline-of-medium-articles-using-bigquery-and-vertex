@@ -55,9 +55,10 @@ def medium_rag_pipeline():
     fetch_rss = KubernetesPodOperator(
         task_id="fetch_topic_urls",
         name="fetch-topic-urls-pod",
-        namespace="default",
+        namespace="composer-user-workloads",
         image=IMAGE_INGEST_NODE,
         cmds=["npm", "run", "fetch-urls", "---", "--topic", TOPIC],
+        env_vars={"BRONZE_BUCKET": BRONZE_BUCKET},
         get_logs=True,
         is_delete_operator_pod=True,
     )
@@ -91,8 +92,9 @@ def medium_rag_pipeline():
     scrape_articles = KubernetesPodOperator.partial(
         task_id="fetch_medium_article",
         name="fetch-medium-article-pod",
-        namespace="default",
+        namespace="composer-user-workloads",
         image=IMAGE_INGEST_NODE,
+        env_vars={"BRONZE_BUCKET": BRONZE_BUCKET},
         get_logs=True,
         is_delete_operator_pod=True,
     ).expand(
