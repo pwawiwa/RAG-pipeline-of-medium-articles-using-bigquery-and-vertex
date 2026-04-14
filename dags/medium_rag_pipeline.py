@@ -15,6 +15,20 @@ from google.cloud import storage
 BRONZE_BUCKET = os.environ.get("BRONZE_BUCKET", "medium-bronze-asia-southeast1-my-playground-492309")
 TOPIC = "data-engineering" # Default target topic
 IMAGE_INGEST_NODE = "asia-southeast1-docker.pkg.dev/my-playground-492309/medium-repo/medium-ingest-node:latest"
+GCP_PROJECT_ID = "my-playground-492309"
+GCP_REGION = "asia-southeast1"
+BQ_DATASET = "medium_pipeline"
+BQ_TABLE = "silver_medium_articles"
+
+# Shared environment variables for all tasks (K8s and Bash)
+COMMON_ENV = {
+    "GCP_PROJECT_ID": GCP_PROJECT_ID,
+    "GCP_REGION": GCP_REGION,
+    "BRONZE_BUCKET": BRONZE_BUCKET,
+    "BQ_DATASET": BQ_DATASET,
+    "BQ_TABLE": BQ_TABLE,
+    "VERTEX_RAG_CORPUS_NAME": CORPUS_NAME
+}
 
 def fetch_failed_callback(context):
     """Task-level failure callback that writes failure metadata to GCS."""
@@ -58,7 +72,7 @@ def medium_rag_pipeline():
         namespace="composer-user-workloads",
         image=IMAGE_INGEST_NODE,
         cmds=["npm", "run", "fetch-urls", "---", "--topic", TOPIC],
-        env_vars={"BRONZE_BUCKET": BRONZE_BUCKET},
+        env_vars=COMMON_ENV,
         get_logs=True,
         is_delete_operator_pod=True,
     )
@@ -94,7 +108,7 @@ def medium_rag_pipeline():
         name="fetch-medium-article-pod",
         namespace="composer-user-workloads",
         image=IMAGE_INGEST_NODE,
-        env_vars={"BRONZE_BUCKET": BRONZE_BUCKET},
+        env_vars=COMMON_ENV,
         get_logs=True,
         is_delete_operator_pod=True,
     ).expand(
@@ -105,13 +119,15 @@ def medium_rag_pipeline():
     transform_to_silver = BashOperator(
         task_id="load_to_bigquery_silver",
         # Assuming apt/tools are deployed alongside DAGs in Composer
-        bash_command=f"python /home/airflow/gcs/data/apt/tools/transform/load_to_bigquery.py --topic {TOPIC} --date {{{{ ds }}}}"
+        bash_command=f"python /home/airflow/gcs/data/apt/tools/transform/load_to_bigquery.py --topic {TOPIC} --date {{{{ ds }}}}",
+        env=COMMON_ENV
     )
 
     # Task 5: Sync to Vertex AI RAG (Gold) using BashOperator
     sync_to_gold = BashOperator(
         task_id="update_vertex_rag",
-        bash_command=f"python /home/airflow/gcs/data/apt/tools/serve/update_vertex_rag.py --date {{{{ ds }}}}"
+        bash_command=f"python /home/airflow/gcs/data/apt/tools/serve/update_vertex_rag.py --date {{{{ ds }}}}",
+        env=COMMON_ENV
     )
 
     # Architectural Dependency Graph
