@@ -7,3 +7,4 @@ bq_schema.json
 *.pyc
 __pycache__/
 .env
+.venv/

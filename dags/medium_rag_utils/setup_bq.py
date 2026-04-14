@@ -57,4 +57,4 @@ def setup_infrastructure(project_id: str, location: str, dataset: str):
 
 if __name__ == "__main__":
     from . import config
-    setup_infrastructure(config.GCP_PROJECT_ID, config.GCP_REGION, config.BQ_DATASET)
+    setup_infrastructure(config.cfg.project_id, config.cfg.region, config.cfg.bq_dataset)

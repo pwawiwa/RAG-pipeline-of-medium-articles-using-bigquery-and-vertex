@@ -11,7 +11,7 @@ dag_path = os.path.dirname(os.path.abspath(__file__))
 if dag_path not in sys.path:
     sys.path.append(dag_path)
 
-from airflow.decorators import dag, task
+from airflow.decorators import dag, task  # pylint: disable=no-name-in-module
 from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from kubernetes.client import models as k8s
 from google.cloud import storage

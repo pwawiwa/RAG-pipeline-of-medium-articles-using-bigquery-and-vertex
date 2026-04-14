@@ -63,7 +63,17 @@ jobs:
             google-cloud-storage \
             python-dotenv \
             kubernetes \
-            pylint
+            pylint \
+            pytest \
+            pytest-mock \
+            pytest-cov
+
+      - name: Run Unit Tests (Pytest)
+        run: |
+          echo "[INFO] Running full unit test suite with coverage"
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/dags:$(pwd)/api
+          pytest tests/ --cov=dags --cov=api --cov-report=xml
+          echo "[SUCCESS] All unit tests passed!"
 
       - name: Run Linter (Pylint)
         run: |

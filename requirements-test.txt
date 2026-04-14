@@ -1,0 +1,16 @@
+# Test Framework
+pytest
+pytest-mock
+pytest-cov
+httpx
+
+# Base Dependencies (Needed for imports during testing)
+apache-airflow
+google-cloud-aiplatform
+google-cloud-bigquery
+google-cloud-storage
+google-cloud-secret-manager
+pydantic
+fastapi
+kubernetes
+python-dotenv
