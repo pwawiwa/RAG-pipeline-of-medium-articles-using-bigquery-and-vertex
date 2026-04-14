@@ -53,12 +53,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Airflow for Validation
+      - name: Install Dependencies for Validation
         run: |
           pip install apache-airflow \
             apache-airflow-providers-cncf-kubernetes \
-            google-cloud-storage \
+            google-cloud-aiplatform \
             google-cloud-bigquery \
+            google-cloud-storage \
+            python-dotenv \
             kubernetes
 
       - name: Verify DAG Syntax
