@@ -1,13 +1,13 @@
 # Path: apt/tools/serve/update_vertex_rag.py
 # Purpose: Exports clean BigQuery records and upserts them into Vertex AI RAG Managed Corpus
 # Idempotent: true
-# Dependencies: google-cloud-bigquery, vertexai, python-dotenv
 
 import os
 import argparse
 from datetime import datetime
 from google.cloud import bigquery
 from google.cloud import storage
+from google.api_core import exceptions as google_exceptions
 import vertexai
 from vertexai.preview import rag
 from dotenv import load_dotenv
@@ -21,73 +21,73 @@ BQ_TABLE = os.getenv("BQ_TABLE")
 BRONZE_BUCKET = os.getenv("BRONZE_BUCKET")
 CORPUS_NAME = os.getenv("VERTEX_RAG_CORPUS_NAME")
 
-if not all([GCP_PROJECT_ID, GCP_REGION, BQ_DATASET, BQ_TABLE, BRONZE_BUCKET, CORPUS_NAME]):
-    print("[ERROR] Missing required environment variables from catalog.json schema")
-    exit(1)
-
 def main():
-    parser = argparse.ArgumentParser(description="Sync BQ Silver data to Vertex AI Gold RAG Corpus.")
+    parser = argparse.ArgumentParser(description="Sync BQ Silver data to Vertex AI Gold RAG Corpus (Optimized & Defensive).")
     parser.add_argument("--date", required=False, help="Date partition to sync (YYYY-MM-DD), defaults to today")
     args = parser.parse_args()
     
     target_date = args.date if args.date else datetime.utcnow().strftime("%Y-%m-%d")
-    print(f"[INFO] Starting Vertex AI sync for date: {target_date}")
+    
+    if not all([GCP_PROJECT_ID, GCP_REGION, BQ_DATASET, BQ_TABLE, BRONZE_BUCKET, CORPUS_NAME]):
+        print("[ERROR] Missing required environment variables. Verify .env or catalog.json")
+        exit(1)
 
-    # 1. Fetch valid, un-gated rows from BigQuery
+    print(f"[DEFENSIVE-SYNC] Starting Vertex AI sync for date: {target_date}")
+
+    # 1. Initialize & Validate (Fail Fast)
+    vertexai.init(project=GCP_PROJECT_ID, location=GCP_REGION)
+    
+    print(f"[INFO] Validating RAG Corpus: {CORPUS_NAME}")
+    try:
+        rag.get_corpus(name=CORPUS_NAME)
+        print("[SUCCESS] Corpus validated.")
+    except google_exceptions.NotFound:
+        print(f"[CRITICAL ERROR] RAG Corpus NOT FOUND: {CORPUS_NAME}. Check VERTEX_RAG_CORPUS_NAME env var.")
+        exit(1)
+    except google_exceptions.PermissionDenied:
+        print(f"[CRITICAL ERROR] IAM PERMISSION DENIED on {CORPUS_NAME}. Service account needs aiplatform.user role.")
+        exit(1)
+    except Exception as e:
+        print(f"[ERROR] Unexpected validation error: {e}")
+        exit(1)
+
+    # 2. Native BigQuery Export
     bq_client = bigquery.Client(project=GCP_PROJECT_ID)
     table_id = f"{GCP_PROJECT_ID}.{BQ_DATASET}.{BQ_TABLE}"
     
-    query = f"""
-        SELECT article_url, title, author_name, page_content, published_date
-        FROM `{table_id}`
-        WHERE content_gated = FALSE 
-          AND published_date = '{target_date}'
-    """
-    
-    print("[INFO] Fetching records from BigQuery...")
-    query_job = bq_client.query(query)
-    rows = list(query_job.result())
-    
-    if not rows:
-        print("[INFO] No un-gated articles found for the target date. Exiting.")
-        return
-
-    # 2. Initialize Vertex AI
-    vertexai.init(project=GCP_PROJECT_ID, location=GCP_REGION)
-
-    # Note: If the corpus doesn't exist, this job assumes it has been provisioned via Terraform or manually per standard GCP ops.
-    # In Vertex RAG, files are uniquely identified by a name hash internally.
-    # We will spool the text to a temporary local staging directory to utilize batch upload.
-    
-    storage_client = storage.Client(project=GCP_PROJECT_ID)
-    # Sanitize bucket name and prefix to prevent mangled URIs
     clean_bucket = BRONZE_BUCKET.strip().replace("gs://", "").strip("/")
-    bucket = storage_client.bucket(clean_bucket)
-    
     staging_prefix = f"staging/vertex-rag/{target_date}/"
     gcs_staging_uri = f"gs://{clean_bucket}/{staging_prefix}"
-    
-    print(f"[V3-SYNC] Starting sync for date: {target_date}")
-    print(f"[V3-SYNC] Using GCS URI: {gcs_staging_uri}")
-    print(f"[V3-SYNC] Uploading {len(rows)} articles to GCS staging...")
-    
-    for row in rows:
-        slug = row['article_url'].split("/")[-1].split("?")[0]
-        if not slug:
-           slug = str(hash(row['article_url']))
-        
-        # Structure the content for optimal RAG chunking
-        rag_text = f"Title: {row['title']}\n"
-        rag_text += f"Author: {row['author_name']}\n"
-        rag_text += f"Date: {row['published_date']}\n"
-        rag_text += f"URL: {row['article_url']}\n\n"
-        rag_text += row['page_content']
-        
-        blob = bucket.blob(f"{staging_prefix}{slug}.txt")
-        blob.upload_from_string(rag_text, content_type="text/plain")
 
-    # 3. Import path into Managed Corpus
-    print(f"[INFO] Importing files into Vertex RAG Corpus: {CORPUS_NAME}")
+    export_query = f"""
+    EXPORT DATA OPTIONS(
+      uri='{gcs_staging_uri}articles_*.json',
+      format='JSON',
+      overwrite=true
+    ) AS
+    SELECT 
+      CONCAT(
+        'Title: ', IFNULL(title, 'Untitled'), 
+        '\\nAuthor: ', IFNULL(author_name, 'Unknown'), 
+        '\\nDate: ', IFNULL(published_date, '{target_date}'), 
+        '\\nURL: ', IFNULL(article_url, ''), 
+        '\\n\\n', IFNULL(page_content, '')
+      ) as text_content
+    FROM `{table_id}`
+    WHERE content_gated = FALSE 
+      AND published_date = '{target_date}'
+    """
+    
+    print(f"[INFO] Exporting articles from BQ to {gcs_staging_uri}...")
+    try:
+        export_job = bq_client.query(export_query)
+        export_job.result()
+    except Exception as e:
+        print(f"[WARN] Export failed (likely no rows for this date): {e}")
+        return
+
+    # 3. Bulk Import
+    print(f"[INFO] Importing files into Vertex RAG Corpus...")
     try:
         response = rag.import_files(
             corpus_name=CORPUS_NAME,
@@ -95,7 +95,7 @@ def main():
             chunk_size=1024,
             chunk_overlap=128
         )
-        print(f"[SUCCESS] Import triggered. Uploaded {response.imported_files_count} files successfully.")
+        print(f"[SUCCESS] Import triggered. Processed {response.imported_files_count} files.")
     except Exception as e:
         print(f"[ERROR] Failed to import into Vertex RAG: {e}")
         exit(1)
