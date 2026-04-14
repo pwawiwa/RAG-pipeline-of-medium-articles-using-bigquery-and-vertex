@@ -13,6 +13,7 @@ def setup_infrastructure(project_id: str, location: str, dataset: str):
     connection_id = "vertex-ai-connection"
     connection_path = f"projects/{project_id}/locations/{location}/connections/{connection_id}"
     model_id = f"{project_id}.{dataset}.embedding_model"
+    gen_model_id = f"{project_id}.{dataset}.gemini_model"
 
     logger.info(f"--- [1/4] Establishing Cloud Connection: {connection_id} ---")
     # Connection creation usually requires specific roles, but we'll try it.
@@ -72,6 +73,19 @@ def setup_infrastructure(project_id: str, location: str, dataset: str):
         logger.error(f"Failed to create model: {e}")
         return False
 
+    logger.info(f"--- [3.5/4] Creating Remote Gemini Model: {gen_model_id} ---")
+    gen_model_query = f"""
+    CREATE OR REPLACE MODEL `{gen_model_id}`
+    REMOTE WITH CONNECTION `{sql_connection_path}`
+    OPTIONS(ENDPOINT = 'gemini-pro');
+    """
+    try:
+        client.query(gen_model_query).result()
+        logger.info(f"Model {gen_model_id} created/updated.")
+    except Exception as e:
+        logger.error(f"Failed to create gemini model: {e}")
+        return False
+
     logger.info(f"--- [4/4] Creating Gold Article Chunks Table ---")
     chunks_table_id = f"{project_id}.{dataset}.gold_article_chunks"
     create_chunks_query = f"""
@@ -102,11 +116,26 @@ def test_embedding_model(project_id: str, dataset: str):
     """
     try:
         client.query(test_query).result()
+        print("✅ Embeddings: SUCCESS")
+    except Exception as e:
+        print(f"❌ Embeddings: FAILURE - {e}")
+
+    gen_model_id = f"{project_id}.{dataset}.gemini_model"
+    logger.info(f"--- Validating Model: {gen_model_id} ---")
+    gen_test_query = f"""
+    SELECT * FROM ML.GENERATE_TEXT(
+      MODEL `{gen_model_id}`,
+      (SELECT 'Say hello' as prompt),
+      STRUCT(50 as max_output_tokens)
+    )
+    """
+    try:
+        client.query(gen_test_query).result()
+        print("✅ Gemini Generation: SUCCESS")
         print("\n✅ SUCCESS: The BigQuery AI infrastructure is operational!")
         return True
     except Exception as e:
-        print(f"\n❌ FAILURE: Model validation failed: {e}")
-        print("HINT: This usually means the Connection Service Account is missing IAM permissions.")
+        print(f"❌ Gemini Generation: FAILURE - {e}")
         return False
 
 if __name__ == "__main__":
